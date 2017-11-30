@@ -1,7 +1,36 @@
-### Binning example
-using DataFrames, DataArrays
+### Binning
+# A bin is a range of values between which values are grouped. Bins range from
+# 1 to however many bins are selected. This allows for continuous data to be used
+# for classification or histograms or other analysis.
 
-function find_bin(x::Float64, limits::Vector{Float64})
+using DataFrames
+
+SampleSpaceTooSmall = AssertionError("equalfrequencylimits(dv, bins) -> bins is not less than the length of dv. Reduce bins.")
+BinWidthTooSmall = AssertionError("equalfrequencylimits(dv, bins) -> The calculated width of the bins is too small for sample space. Add more data or reduce bins.")
+
+function equaldistancelimits(dv::Vector{<:AbstractFloat}, bins::Signed)
+    min = minimum(dv); max = maximum(dv); binwidth = (max-min)/bins
+    return(min:binwidth:max)
+end
+
+function equalfrequencylimits(dv::Vector{<:AbstractFloat}, bins::Signed)
+    if bins > length(dv)
+        throw(SampleSpaceTooSmall)
+    end
+    sorteddv = sort(dv)
+    elements = length(dv); binwidth = div(elements, bins)
+    if binwidth < 1
+        throw(BinWidthTooSmall)
+    end
+    binrange = zeros(Float64, bins)
+    for i in 1:bins
+        binrange[i] = dv[i*binwidth]
+    end
+    if mod(elements,bins) > 0 binrange[end] = dv[end] end
+    return binrange
+end
+
+function find_bin(x::AbstractFloat, limits::Vector{<:AbstractFloat})
     bin = length(limits) + 1
     for i in 1:length(limits)
         if x < limits[i]
@@ -12,7 +41,7 @@ function find_bin(x::Float64, limits::Vector{Float64})
     bin
 end
 
-function find_bin(x::Float64, limits::StepRangeLen{Float64})
+function find_bin(x::AbstractFloat, limits::StepRangeLen{<:AbstractFloat})
     bin = length(limits) + 1
     for i in 1:length(limits)
         if x < limits[i]
@@ -23,7 +52,7 @@ function find_bin(x::Float64, limits::StepRangeLen{Float64})
     bin
 end
 
-function find_bins(dv::DataFrames.DataVector{Float64}, limits::Vector{Float64})
+function find_bins(dv::Vector{<:AbstractFloat}, limits::Vector{<:AbstractFloat})
     vbins = zeros(Int64, length(dv))
     for i in 1:length(dv)
         vbins[i] = find_bin(dv[i], limits)
@@ -31,7 +60,7 @@ function find_bins(dv::DataFrames.DataVector{Float64}, limits::Vector{Float64})
     vbins
 end
 
-function find_bins(dv::DataFrames.DataVector{Float64}, limits::StepRangeLen{Float64})
+function find_bins(dv::Vector{<:AbstractFloat}, limits::StepRangeLen{<:AbstractFloat})
     vbins = zeros(Int64, length(dv))
     for i in 1:length(dv)
         vbins[i] = find_bin(dv[i], limits)
@@ -39,7 +68,7 @@ function find_bins(dv::DataFrames.DataVector{Float64}, limits::StepRangeLen{Floa
     vbins
 end
 
-function group_bins{T}(df::AbstractDataFrame, col::T, limits::Vector{Float64})
+function group_bins{T}(df::AbstractDataFrame, col::T, limits::Vector{AbstractFloat})
     n_bins = length(limits) + 1
 
     vbins = find_bins(df[col], limits)
@@ -51,7 +80,7 @@ function group_bins{T}(df::AbstractDataFrame, col::T, limits::Vector{Float64})
     GroupedDataFrame(df, [col], idx, starts[1:end-1], ends)
 end
 
-function group_bins{T}(df::AbstractDataFrame, col::T, limits::StepRangeLen{Float64})
+function group_bins{T}(df::AbstractDataFrame, col::T, limits::StepRangeLen{AbstractFloat})
     n_bins = length(limits) + 1
 
     vbins = find_bins(df[col], limits)
